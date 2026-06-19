@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Disallow: /checkout.html
+Disallow: /dashboard.html
+Disallow: /login.html
+Disallow: /register.html
+Disallow: /forgot-password.html
+Disallow: /certificate.html
+Disallow: /quiz.html
+Disallow: /app.html
+
+Sitemap: https://academy.optimityfx.com/sitemap.xml

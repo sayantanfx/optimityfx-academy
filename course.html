@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Course Player — OptimityFX</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="96x96" href="assets/favicon-96x96.png">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192x192.png">
+<link rel="shortcut icon" href="assets/favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/favicon-180x180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="css/style.css?v=20260608">
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a href="index.html" class="brand"><img src="assets/logo-nav.webp" alt="OptimityFX" class="brand-img" width="332" height="112"></a>
+    <div class="nav-cta">
+      <a href="dashboard.html" class="btn btn-ghost btn-sm">← My Dashboard</a>
+    </div>
+  </div>
+</header>
+
+<div class="course-layout">
+
+  <!-- Lesson sidebar -->
+  <aside class="lesson-sidebar">
+    <div class="lesson-sidebar-head">
+      <h3 id="course-title">Loading…</h3>
+      <div class="cp-progress-bar"><div class="cp-progress-fill" id="course-progress-fill" style="width:0%"></div></div>
+      <div class="cp-pct" id="course-pct">0% complete</div>
+    </div>
+    <div id="modules-list"></div>
+  </aside>
+
+  <!-- Player -->
+  <div class="course-player-area">
+    <div class="player-top">
+      <h2 id="lesson-title">Select a lesson to begin</h2>
+      <div style="display:flex;gap:10px;align-items:center">
+        <span id="lesson-type-badge"></span>
+        <button class="btn btn-ghost btn-sm" id="prev-btn" style="display:none">← Prev</button>
+        <button class="btn btn-ghost btn-sm" id="next-btn" style="display:none">Next →</button>
+      </div>
+    </div>
+
+    <!-- Video -->
+    <div class="player-video" id="player-video" style="display:none">
+      <div class="ratio" id="video-ratio"></div>
+    </div>
+
+    <!-- Live class placeholder -->
+    <div id="live-banner" style="display:none;background:rgba(255,59,87,.08);border:1px solid rgba(255,59,87,.3);border-radius:0;padding:24px 28px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="width:10px;height:10px;border-radius:50%;background:var(--red);box-shadow:0 0 10px var(--red);flex-shrink:0"></span>
+        <div>
+          <div style="font-weight:700;color:var(--white);margin-bottom:4px" id="live-schedule-text">Live session</div>
+          <div style="font-size:.84rem;color:var(--muted)">Join via the link below when the session starts.</div>
+        </div>
+        <a id="live-join-btn" href="#" target="_blank" class="btn btn-accent btn-sm" style="margin-left:auto">Join Live →</a>
+      </div>
+    </div>
+
+    <!-- Welcome (no lesson selected) -->
+    <div id="welcome-panel" style="padding:48px 28px;text-align:center">
+      <div style="width:80px;height:80px;margin:0 auto 20px;border-radius:50%;background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.25);display:grid;place-items:center;color:var(--accent)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="36" height="36"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+      </div>
+      <h3 style="color:var(--white);margin-bottom:8px" id="welcome-title">Welcome to the course!</h3>
+      <p style="color:var(--muted);max-width:40ch;margin:0 auto">Pick a lesson from the sidebar to start learning. Your progress is saved automatically.</p>
+    </div>
+
+    <div class="player-body" id="player-body" style="display:none">
+      <p class="player-desc" id="lesson-desc"></p>
+      <div class="player-actions">
+        <button class="btn btn-accent" id="mark-complete-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="width:16px;height:16px"><path d="M20 6 9 17l-5-5"/></svg>
+          Mark Complete
+        </button>
+        <a id="quiz-btn" href="#" class="btn btn-ghost" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:16px;height:16px"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01"/></svg>
+          Take Quiz
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.min.js"></script>
+<script src="js/config.js?v=20260615b"></script>
+<script src="js/auth.js?v=20260618a"></script>
+<script src="js/main.js?v=20260608"></script>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  const session = await OFXAuth.requireAuth();
+  if (!session) return;
+
+  const sb  = OFXAuth.sb;
+  const uid = session.user.id;
+  const params = new URLSearchParams(location.search);
+  const courseId = params.get('id');
+  if (!courseId) { alert('No course specified.'); window.location.href='academy.html'; return; }
+
+  // Verify enrollment
+  const { data: enrollment } = await sb.from('enrollments').select('id').eq('user_id',uid).eq('course_id',courseId).maybeSingle();
+  if (!enrollment) {
+    if (!confirm('You are not enrolled in this course. Go to Academy?')) return;
+    window.location.href = 'academy.html'; return;
+  }
+
+  // Load course
+  const { data: course } = await sb.from('courses').select('*').eq('id',courseId).single();
+  if (!course) return;
+  document.title = course.title + ' — OptimityFX';
+  document.getElementById('course-title').textContent = course.title;
+  document.getElementById('welcome-title').textContent = 'Welcome to ' + course.title + '!';
+
+  // Load modules + lessons
+  const { data: modules } = await sb.from('modules').select('*').eq('course_id',courseId).order('order_index');
+  const { data: lessons } = await sb.from('lessons').select('*').order('order_index');
+  const { data: progress } = await sb.from('lesson_progress').select('lesson_id').eq('user_id',uid);
+  const doneIds = new Set((progress||[]).map(p=>p.lesson_id));
+
+  // Count total lessons
+  const allLessons = [];
+  (modules||[]).forEach(m => {
+    const ml = (lessons||[]).filter(l=>l.module_id===m.id);
+    ml.forEach(l=>allLessons.push(l));
+  });
+
+  // Build sidebar
+  let currentLesson = null, currentIdx = 0;
+  function updateProgress() {
+    const pct = allLessons.length ? Math.round(doneIds.size/allLessons.length*100) : 0;
+    document.getElementById('course-progress-fill').style.width = pct+'%';
+    document.getElementById('course-pct').textContent = pct+'% complete';
+    // Update sidebar icons
+    allLessons.forEach(l => {
+      const icon = document.getElementById('li-icon-'+l.id);
+      if (icon) icon.innerHTML = doneIds.has(l.id)
+        ? `<svg viewBox="0 0 24 24" fill="none" stroke="#22e07a" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>`
+        : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="5 3 19 12 5 21 5 3"/></svg>`;
+    });
+  }
+
+  const modulesList = document.getElementById('modules-list');
+  (modules||[]).forEach(m => {
+    const ml = (lessons||[]).filter(l=>l.module_id===m.id);
+    const div = document.createElement('div');
+    div.className = 'module-item open';
+    div.innerHTML = `
+      <div class="module-label">
+        ${m.title}
+        <svg viewBox="0 0 12 8" fill="none" stroke="currentColor" stroke-width="1.6" width="10" height="10"><path d="M1 1.5 6 6.5 11 1.5"/></svg>
+      </div>
+      <div class="module-lessons">
+        ${ml.map(l=>`
+          <div class="lesson-item ${doneIds.has(l.id)?'done':''}" id="li-${l.id}" data-id="${l.id}">
+            <span class="li-icon" id="li-icon-${l.id}">
+              ${doneIds.has(l.id)?`<svg viewBox="0 0 24 24" fill="none" stroke="#22e07a" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>`:
+              `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="5 3 19 12 5 21 5 3"/></svg>`}
+            </span>
+            <span class="li-title">${l.title}</span>
+            ${l.duration_mins?`<span class="li-dur">${l.duration_mins}m</span>`:''}
+          </div>`).join('')}
+      </div>`;
+    // Toggle collapse
+    div.querySelector('.module-label').addEventListener('click', () => div.classList.toggle('open'));
+    // Lesson click
+    div.querySelectorAll('.lesson-item').forEach(li => {
+      li.addEventListener('click', () => {
+        const lesson = ml.find(l=>l.id===li.dataset.id);
+        if (lesson) playLesson(lesson);
+      });
+    });
+    modulesList.appendChild(div);
+  });
+
+  function playLesson(lesson) {
+    currentLesson = lesson;
+    currentIdx = allLessons.findIndex(l=>l.id===lesson.id);
+
+    // Sidebar highlight
+    document.querySelectorAll('.lesson-item').forEach(li => li.classList.remove('active'));
+    document.getElementById('li-'+lesson.id)?.classList.add('active');
+
+    // Player
+    document.getElementById('welcome-panel').style.display = 'none';
+    document.getElementById('player-body').style.display   = '';
+    document.getElementById('lesson-title').textContent    = lesson.title;
+    document.getElementById('lesson-desc').textContent     = lesson.description || '';
+
+    // Video
+    if (lesson.video_url) {
+      document.getElementById('player-video').style.display = '';
+      document.getElementById('live-banner').style.display  = 'none';
+      document.getElementById('video-ratio').innerHTML = `<iframe src="${lesson.video_url}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>`;
+    } else if (course.is_live && course.live_url) {
+      document.getElementById('player-video').style.display = 'none';
+      document.getElementById('live-banner').style.display  = '';
+      document.getElementById('live-schedule-text').textContent = course.live_schedule?.text || 'Live session scheduled';
+      document.getElementById('live-join-btn').href = course.live_url;
+    } else {
+      document.getElementById('player-video').style.display = 'none';
+      document.getElementById('live-banner').style.display  = 'none';
+    }
+
+    // Nav buttons
+    document.getElementById('prev-btn').style.display = currentIdx > 0 ? '' : 'none';
+    document.getElementById('next-btn').style.display = currentIdx < allLessons.length-1 ? '' : 'none';
+
+    // Mark complete button state
+    const mcBtn = document.getElementById('mark-complete-btn');
+    if (doneIds.has(lesson.id)) {
+      mcBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="#22e07a" stroke-width="2.2" style="width:16px;height:16px"><path d="M20 6 9 17l-5-5"/></svg> Completed`;
+      mcBtn.style.opacity = '.6';
+      mcBtn.disabled = true;
+    } else {
+      mcBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="width:16px;height:16px"><path d="M20 6 9 17l-5-5"/></svg> Mark Complete`;
+      mcBtn.style.opacity = '';
+      mcBtn.disabled = false;
+    }
+
+    // Quiz button (show on last lesson of last module)
+    if (currentIdx === allLessons.length-1) {
+      sb.from('quizzes').select('id').eq('course_id',courseId).maybeSingle().then(({ data: quiz }) => {
+        if (quiz) {
+          document.getElementById('quiz-btn').style.display = '';
+          document.getElementById('quiz-btn').href = `quiz.html?quiz=${quiz.id}&course=${courseId}`;
+        }
+      });
+    } else {
+      document.getElementById('quiz-btn').style.display = 'none';
+    }
+  }
+
+  // Mark complete
+  document.getElementById('mark-complete-btn').addEventListener('click', async () => {
+    if (!currentLesson) return;
+    await sb.from('lesson_progress').upsert({ user_id:uid, lesson_id:currentLesson.id }, { onConflict:'user_id,lesson_id' });
+    doneIds.add(currentLesson.id);
+    document.getElementById('li-'+currentLesson.id)?.classList.add('done');
+    updateProgress();
+
+    // Check if course complete
+    if (doneIds.size >= allLessons.length) {
+      await sb.from('enrollments').update({ completed_at: new Date().toISOString() }).eq('user_id',uid).eq('course_id',courseId);
+      OFXAuth.toast('🎉 Course complete! Check your quiz to earn a certificate.', 'success', 6000);
+    }
+
+    // Auto-advance
+    if (currentIdx < allLessons.length-1) {
+      setTimeout(() => playLesson(allLessons[currentIdx+1]), 800);
+    } else {
+      const mcBtn = document.getElementById('mark-complete-btn');
+      mcBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="#22e07a" stroke-width="2.2" style="width:16px;height:16px"><path d="M20 6 9 17l-5-5"/></svg> Completed`;
+      mcBtn.style.opacity = '.6';
+      mcBtn.disabled = true;
+    }
+  });
+
+  document.getElementById('prev-btn').addEventListener('click', () => { if (currentIdx > 0) playLesson(allLessons[currentIdx-1]); });
+  document.getElementById('next-btn').addEventListener('click', () => { if (currentIdx < allLessons.length-1) playLesson(allLessons[currentIdx+1]); });
+
+  updateProgress();
+  // Auto-play first incomplete lesson
+  const firstIncomplete = allLessons.find(l=>!doneIds.has(l.id));
+  if (firstIncomplete) playLesson(firstIncomplete);
+  else if (allLessons.length) playLesson(allLessons[allLessons.length-1]);
+});
+</script>
+</body>
+</html>

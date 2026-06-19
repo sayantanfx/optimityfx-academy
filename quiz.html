@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Course Assessment — OptimityFX</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="96x96" href="assets/favicon-96x96.png">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192x192.png">
+<link rel="shortcut icon" href="assets/favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/favicon-180x180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="css/style.css?v=20260608">
+</head>
+<body style="padding-top:76px">
+
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a href="index.html" class="brand"><img src="assets/logo-nav.webp" alt="OptimityFX" class="brand-img" width="332" height="112"></a>
+    <div class="nav-cta">
+      <span id="quiz-nav-title" style="font-size:.86rem;color:var(--muted)">Assessment</span>
+    </div>
+  </div>
+</header>
+
+<div class="quiz-wrap">
+
+  <!-- Loading -->
+  <div id="quiz-loading" style="text-align:center;padding:80px 0">
+    <div style="color:var(--muted)">Loading assessment…</div>
+  </div>
+
+  <!-- Quiz -->
+  <div id="quiz-active" style="display:none">
+    <div class="quiz-head">
+      <p class="eyebrow">Course Assessment</p>
+      <h2 id="quiz-title">Assessment</h2>
+      <div class="quiz-prog-bar"><div class="quiz-prog-fill" id="quiz-prog" style="width:0%"></div></div>
+      <div class="quiz-meta-row">
+        <span id="quiz-q-counter">Question 1 of 1</span>
+        <span id="quiz-score-live">Score: 0</span>
+      </div>
+    </div>
+
+    <div id="question-wrap"></div>
+
+    <div class="quiz-nav">
+      <button class="btn btn-ghost" id="quiz-prev-btn" style="display:none">← Back</button>
+      <button class="btn btn-accent" id="quiz-next-btn">Next →</button>
+    </div>
+  </div>
+
+  <!-- Result -->
+  <div id="quiz-result" style="display:none">
+    <div class="quiz-result">
+      <div class="result-icon" id="result-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" id="result-svg"><path d="M20 6 9 17l-5-5"/></svg>
+      </div>
+      <div class="result-score" id="result-score">0%</div>
+      <p class="result-sub" id="result-msg">You passed!</p>
+      <div id="result-actions" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+        <a href="dashboard.html" class="btn btn-ghost">← Dashboard</a>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.min.js"></script>
+<script src="js/config.js?v=20260615b"></script>
+<script src="js/auth.js?v=20260618a"></script>
+<script src="js/main.js?v=20260608"></script>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  const session = await OFXAuth.requireAuth();
+  if (!session) return;
+
+  const sb  = OFXAuth.sb;
+  const uid = session.user.id;
+  const params = new URLSearchParams(location.search);
+  const quizId   = params.get('quiz');
+  const courseId = params.get('course');
+  if (!quizId) { alert('No quiz specified.'); history.back(); return; }
+
+  // Load quiz + questions
+  const { data: quiz } = await sb.from('quizzes').select('*').eq('id', quizId).single();
+  const { data: questions } = await sb.from('questions').select('*').eq('quiz_id', quizId).order('order_index');
+  if (!quiz || !questions?.length) { document.getElementById('quiz-loading').innerHTML = '<p style="color:var(--muted);text-align:center">Quiz not found or has no questions.</p>'; return; }
+
+  document.title = quiz.title + ' — OptimityFX';
+  document.getElementById('quiz-title').textContent    = quiz.title;
+  document.getElementById('quiz-nav-title').textContent = quiz.title;
+  document.getElementById('quiz-loading').style.display = 'none';
+  document.getElementById('quiz-active').style.display  = '';
+
+  let currentQ = 0;
+  let answers  = {}; // {questionId: selectedOption}
+  const total  = questions.length;
+
+  function renderQuestion() {
+    const q = questions[currentQ];
+    const pct = Math.round(((currentQ+1)/total)*100);
+    document.getElementById('quiz-prog').style.width = pct+'%';
+    document.getElementById('quiz-q-counter').textContent = `Question ${currentQ+1} of ${total}`;
+    document.getElementById('quiz-score-live').textContent = `Score: ${Object.keys(answers).length}/${currentQ}`;
+    document.getElementById('quiz-prev-btn').style.display = currentQ > 0 ? '' : 'none';
+    document.getElementById('quiz-next-btn').textContent = currentQ === total-1 ? 'Submit Quiz ✓' : 'Next →';
+
+    const opts = Array.isArray(q.options) ? q.options : [];
+    document.getElementById('question-wrap').innerHTML = `
+      <div class="question-card">
+        <div class="q-num">Question ${currentQ+1} / ${total}</div>
+        <div class="q-text">${q.question_text}</div>
+        ${q.image_url ? `<img class="q-img" src="${q.image_url}" alt="Question image">` : ''}
+        <div class="options-list">
+          ${opts.map(o => `
+            <div class="option-item ${answers[q.id]===o.id?'selected':''}" data-opt="${o.id}" onclick="selectOpt('${q.id}','${o.id}')">
+              <div class="opt-dot"></div>
+              <span class="opt-text">${o.text}</span>
+            </div>`).join('')}
+        </div>
+      </div>`;
+  }
+
+  window.selectOpt = (qId, optId) => {
+    answers[qId] = optId;
+    // Re-render to show selection
+    document.querySelectorAll('.option-item').forEach(el => el.classList.remove('selected'));
+    document.querySelector(`.option-item[data-opt="${optId}"]`)?.classList.add('selected');
+  };
+
+  document.getElementById('quiz-next-btn').addEventListener('click', async () => {
+    const q = questions[currentQ];
+    if (!answers[q.id]) { OFXAuth.toast('Please select an answer.','error'); return; }
+
+    if (currentQ < total-1) {
+      currentQ++;
+      renderQuestion();
+    } else {
+      // Submit
+      document.getElementById('quiz-active').style.display  = 'none';
+
+      let correct = 0;
+      questions.forEach(q => { if (answers[q.id] === q.correct_option) correct++; });
+      const score = Math.round((correct/total)*100);
+      const passed = score >= (quiz.pass_score||70);
+
+      // Save attempt
+      const { data: attempt } = await sb.from('quiz_attempts').insert({
+        user_id: uid, quiz_id: quizId, score, total_questions: total,
+        correct_answers: correct, passed, answers,
+      }).select().single();
+
+      // If passed, create certificate
+      let certId = null;
+      if (passed && courseId) {
+        const certNum = 'OFX-' + Date.now().toString(36).toUpperCase();
+        const { data: cert } = await sb.from('certificates').insert({
+          user_id: uid, course_id: courseId,
+          quiz_attempt_id: attempt?.id,
+          certificate_number: certNum,
+        }).select().single();
+        certId = cert?.id;
+      }
+
+      // Show result
+      document.getElementById('quiz-result').style.display = '';
+      document.getElementById('result-score').textContent  = score + '%';
+      document.getElementById('result-icon').className = 'result-icon ' + (passed?'pass':'fail');
+      document.getElementById('result-svg').innerHTML = passed
+        ? '<path d="M20 6 9 17l-5-5"/>'
+        : '<path d="M18 6 6 18M6 6l12 12"/>';
+      document.getElementById('result-msg').textContent = passed
+        ? `🎉 You passed with ${correct}/${total} correct answers!`
+        : `You scored ${correct}/${total}. Need ${quiz.pass_score||70}% to pass. Try again!`;
+
+      const actions = document.getElementById('result-actions');
+      if (passed && certId) actions.innerHTML += `<a href="certificate.html?cert=${certId}" class="btn btn-accent">🏆 Download Certificate</a>`;
+      if (!passed) actions.innerHTML += `<button onclick="location.reload()" class="btn btn-ghost">🔄 Try Again</button>`;
+      actions.innerHTML += courseId ? `<a href="course.html?id=${courseId}" class="btn btn-ghost">← Back to Course</a>` : '';
+    }
+  });
+
+  document.getElementById('quiz-prev-btn').addEventListener('click', () => {
+    if (currentQ > 0) { currentQ--; renderQuestion(); }
+  });
+
+  renderQuestion();
+});
+</script>
+</body>
+</html>

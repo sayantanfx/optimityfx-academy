@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Certificate — OptimityFX</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="96x96" href="assets/favicon-96x96.png">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192x192.png">
+<link rel="shortcut icon" href="assets/favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/favicon-180x180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="css/style.css?v=20260608">
+</head>
+<body style="padding-top:76px">
+
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a href="index.html" class="brand"><img src="assets/logo-nav.webp" alt="OptimityFX" class="brand-img" width="332" height="112"></a>
+    <div class="nav-cta">
+      <button class="btn btn-accent btn-sm" id="download-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="width:15px;height:15px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        Download PDF
+      </button>
+      <a href="dashboard.html" class="btn btn-ghost btn-sm">← Dashboard</a>
+    </div>
+  </div>
+</header>
+
+<div id="cert-loading" style="text-align:center;padding:80px 20px">
+  <p style="color:var(--muted)">Loading certificate…</p>
+</div>
+
+<div class="cert-page" id="cert-page" style="display:none">
+  <div class="cert-box" id="cert-box">
+    <div class="cert-corner"></div>
+    <div class="cert-corner br"></div>
+
+    <img src="assets/logo-nav.webp" alt="OptimityFX" class="cert-logo">
+    <div class="cert-eyebrow">Certificate of Completion</div>
+    <div class="cert-title">This certifies that</div>
+    <div class="cert-sub">the following individual has successfully completed</div>
+
+    <div class="cert-name" id="cert-name">Student Name</div>
+    <div class="cert-course" id="cert-course">Course Title</div>
+
+    <div class="cert-rule"></div>
+
+    <div class="cert-meta">
+      <div class="cert-meta-item">
+        <span class="cmi-label">Score</span>
+        <span class="cmi-value" id="cert-score">100%</span>
+      </div>
+      <div class="cert-meta-item">
+        <span class="cmi-label">Date Issued</span>
+        <span class="cmi-value" id="cert-date">—</span>
+      </div>
+      <div class="cert-meta-item">
+        <span class="cmi-label">Instructor</span>
+        <span class="cmi-value" id="cert-instructor">OptimityFX</span>
+      </div>
+    </div>
+
+    <div style="display:flex;justify-content:center;gap:48px;margin-top:8px">
+      <div style="text-align:center">
+        <div style="width:120px;height:2px;background:var(--line);margin:0 auto 8px"></div>
+        <div style="font-size:.72rem;color:var(--dim);letter-spacing:1px;text-transform:uppercase">Authorised Signature</div>
+      </div>
+    </div>
+
+    <div class="cert-number" id="cert-number">Certificate No: OFX-XXXXXXXX</div>
+
+    <!-- Decorative glow -->
+    <div style="position:absolute;bottom:-60px;left:-60px;width:180px;height:180px;background:radial-gradient(circle,rgba(255,60,87,.1),transparent 70%);border-radius:50%;pointer-events:none"></div>
+  </div>
+</div>
+
+<div style="text-align:center;padding:20px 20px 60px" id="share-row" style="display:none">
+  <p style="font-size:.86rem;color:var(--muted);margin-bottom:14px">Share your achievement</p>
+  <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+    <button class="btn btn-ghost btn-sm" id="share-linkedin">Share on LinkedIn</button>
+    <button class="btn btn-ghost btn-sm" id="copy-cert-url">Copy Link</button>
+  </div>
+</div>
+
+<!-- jsPDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.min.js"></script>
+<script src="js/config.js?v=20260615b"></script>
+<script src="js/auth.js?v=20260618a"></script>
+<script src="js/main.js?v=20260608"></script>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  const session = await OFXAuth.requireAuth();
+  if (!session) return;
+
+  const sb     = OFXAuth.sb;
+  const uid    = session.user.id;
+  const certId = new URLSearchParams(location.search).get('cert');
+  if (!certId) { document.getElementById('cert-loading').innerHTML = '<p style="color:var(--red)">No certificate ID provided.</p>'; return; }
+
+  // Load certificate
+  const { data: cert } = await sb.from('certificates')
+    .select('*, course:courses(title,instructor), attempt:quiz_attempts(score), profile:profiles(full_name)')
+    .eq('id', certId).single();
+
+  if (!cert) { document.getElementById('cert-loading').innerHTML = '<p style="color:var(--red)">Certificate not found.</p>'; return; }
+
+  // Verify ownership (unless public link)
+  // if (cert.user_id !== uid) { ... } // allow public viewing for sharing
+
+  document.getElementById('cert-loading').style.display = 'none';
+  document.getElementById('cert-page').style.display    = '';
+  document.getElementById('share-row').style.display    = '';
+
+  const name       = cert.profile?.full_name || session.user.user_metadata?.full_name || 'Graduate';
+  const courseName = cert.course?.title || 'Course';
+  const score      = cert.attempt?.score || 100;
+  const date       = new Date(cert.issued_at).toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'});
+  const certNum    = cert.certificate_number || certId.slice(0,8).toUpperCase();
+  const instructor = cert.course?.instructor || 'OptimityFX';
+
+  document.title = `Certificate — ${name} — OptimityFX`;
+  document.getElementById('cert-name').textContent       = name;
+  document.getElementById('cert-course').textContent     = courseName;
+  document.getElementById('cert-score').textContent      = score + '%';
+  document.getElementById('cert-date').textContent       = date;
+  document.getElementById('cert-instructor').textContent = instructor;
+  document.getElementById('cert-number').textContent     = 'Certificate No: ' + certNum;
+
+  /* ---- PDF download ---- */
+  document.getElementById('download-btn').addEventListener('click', () => {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
+    const W = doc.internal.pageSize.getWidth();
+    const H = doc.internal.pageSize.getHeight();
+
+    // Background
+    doc.setFillColor(7, 9, 12);
+    doc.rect(0, 0, W, H, 'F');
+
+    // Border
+    doc.setDrawColor(0, 212, 255);
+    doc.setLineWidth(1.5);
+    doc.rect(8, 8, W-16, H-16);
+    doc.setLineWidth(0.5);
+    doc.rect(12, 12, W-24, H-24);
+
+    // Company name
+    doc.setTextColor(0, 212, 255);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('OPTIMITYFX', W/2, 28, { align:'center' });
+
+    // Eyebrow
+    doc.setTextColor(158, 163, 178);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text('CERTIFICATE OF COMPLETION', W/2, 38, { align:'center' });
+
+    // Line
+    doc.setDrawColor(0, 212, 255);
+    doc.setLineWidth(0.4);
+    doc.line(W/2 - 40, 42, W/2 + 40, 42);
+
+    // "This certifies that"
+    doc.setTextColor(158, 163, 178);
+    doc.setFontSize(11);
+    doc.text('This certifies that', W/2, 54, { align:'center' });
+
+    // Name
+    doc.setTextColor(231, 234, 240);
+    doc.setFontSize(32);
+    doc.setFont('helvetica', 'bold');
+    doc.text(name, W/2, 72, { align:'center' });
+
+    // "has successfully completed"
+    doc.setTextColor(158, 163, 178);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.text('has successfully completed', W/2, 82, { align:'center' });
+
+    // Course name
+    doc.setTextColor(0, 212, 255);
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text(courseName, W/2, 95, { align:'center' });
+
+    // Divider
+    doc.setDrawColor(30, 36, 48);
+    doc.setLineWidth(0.6);
+    doc.line(20, 105, W-20, 105);
+
+    // Meta row
+    const metaY = 115;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(94, 103, 118);
+    doc.text('SCORE', W/2-40, metaY-3, { align:'center' });
+    doc.text('DATE ISSUED', W/2, metaY-3, { align:'center' });
+    doc.text('INSTRUCTOR', W/2+40, metaY-3, { align:'center' });
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(231, 234, 240);
+    doc.text(score+'%', W/2-40, metaY+5, { align:'center' });
+    doc.text(date, W/2, metaY+5, { align:'center' });
+    doc.text(instructor, W/2+40, metaY+5, { align:'center' });
+
+    // Signature line
+    doc.setDrawColor(30, 36, 48);
+    doc.setLineWidth(0.6);
+    doc.line(W/2-25, 138, W/2+25, 138);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(94, 103, 118);
+    doc.text('AUTHORISED SIGNATURE', W/2, 143, { align:'center' });
+
+    // Certificate number
+    doc.setFontSize(7);
+    doc.setTextColor(62, 66, 79);
+    doc.text('Certificate No: ' + certNum, W/2, H-14, { align:'center' });
+
+    doc.save(`OptimityFX-Certificate-${name.replace(/\s+/g,'-')}.pdf`);
+  });
+
+  /* ---- Share ---- */
+  document.getElementById('copy-cert-url').addEventListener('click', () => {
+    navigator.clipboard.writeText(window.location.href).then(() => OFXAuth.toast('Certificate link copied!','success'));
+  });
+  document.getElementById('share-linkedin').addEventListener('click', () => {
+    const url = encodeURIComponent(window.location.href);
+    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, '_blank');
+  });
+});
+</script>
+</body>
+</html>

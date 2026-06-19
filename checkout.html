@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Checkout — OptimityFX</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="96x96" href="assets/favicon-96x96.png">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192x192.png">
+<link rel="shortcut icon" href="assets/favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/favicon-180x180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="css/style.css?v=20260615a">
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-79HL7QZ8GE"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-79HL7QZ8GE');</script>
+</head>
+<body>
+
+<div class="progress"></div>
+
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a href="index.html" class="brand">
+      <img src="assets/logo-nav.webp" alt="OptimityFX" class="brand-img" width="332" height="112">
+    </a>
+    <div class="nav-cta">
+      <a href="academy.html" class="btn btn-ghost btn-sm">← Browse Courses</a>
+      <button class="burger" aria-label="Toggle menu"><span></span><span></span><span></span></button>
+    </div>
+  </div>
+</header>
+
+<main style="padding-top:100px; min-height:100vh">
+  <div class="wrap" style="padding-top:40px; padding-bottom:80px">
+
+    <div class="sec-head" style="margin-bottom:36px">
+      <p class="eyebrow">Secure Checkout</p>
+      <h2 class="h-sec">Complete your <span class="grad-text">purchase</span></h2>
+    </div>
+
+    <!-- Empty cart redirect -->
+    <div id="empty-cart" style="display:none">
+      <div class="empty-state">
+        <div class="es-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/></svg></div>
+        <h4>Your cart is empty</h4>
+        <p>Head to the Academy to enroll in a course.</p>
+        <a href="academy.html" class="btn btn-accent btn-sm" style="margin-top:18px">Browse Courses →</a>
+      </div>
+    </div>
+
+    <!-- Success state (after payment) -->
+    <div id="success-state" style="display:none; text-align:center; max-width:480px; margin:0 auto; padding:60px 0">
+      <div style="width:80px;height:80px;margin:0 auto 24px;border-radius:50%;background:rgba(34,224,122,.1);border:1px solid rgba(34,224,122,.3);display:grid;place-items:center;color:#22e07a">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="38" height="38"><path d="M20 6 9 17l-5-5"/></svg>
+      </div>
+      <h2 style="color:var(--white);font-size:1.8rem;margin-bottom:12px">Payment successful!</h2>
+      <p style="margin-bottom:28px">Your purchase is now available in your dashboard. Download links are ready.</p>
+      <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+        <a href="dashboard.html" class="btn btn-accent">Go to Dashboard</a>
+        <a href="academy.html" class="btn btn-ghost">Browse Courses</a>
+      </div>
+    </div>
+
+    <!-- Checkout grid -->
+    <div class="checkout-wrap" id="checkout-content">
+
+      <!-- Cart items -->
+      <div class="checkout-items">
+        <h3>Order Items (<span id="item-count">0</span>)</h3>
+        <div id="cart-items-list"></div>
+      </div>
+
+      <!-- Order summary -->
+      <div class="order-summary">
+        <h3>Order Summary</h3>
+
+        <div class="summary-row">
+          <span>Subtotal</span>
+          <span id="sum-subtotal">₹0</span>
+        </div>
+        <div class="summary-row discount" id="discount-row" style="display:none">
+          <span>Discount</span>
+          <span id="sum-discount">-₹0</span>
+        </div>
+        <div class="summary-row discount" id="credits-discount-row" style="display:none">
+          <span>Credits used</span>
+          <span id="sum-credits-discount">-₹0</span>
+        </div>
+        <div class="summary-row total">
+          <span>Total</span>
+          <span id="sum-total">₹0</span>
+        </div>
+
+        <!-- Wallet credits -->
+        <div class="credits-row" id="credits-row" style="display:none">
+          <label>
+            <input type="checkbox" id="use-credits" style="accent-color:var(--accent)">
+            <span style="margin-left:4px">Use wallet credits</span>
+          </label>
+          <span class="credits-val" id="credits-available">0 ✦</span>
+        </div>
+
+        <!-- Coupon code -->
+        <div class="coupon-row">
+          <input class="coupon-input" type="text" id="coupon-code" placeholder="Coupon code" maxlength="30">
+          <button class="btn-coupon" id="apply-coupon">Apply</button>
+        </div>
+        <div class="coupon-msg" id="coupon-msg"></div>
+
+        <!-- Pay button -->
+        <button class="btn-pay" id="pay-btn" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+          Pay with Razorpay
+        </button>
+
+        <p class="secure-note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          256-bit SSL encrypted. Razorpay secure checkout.
+        </p>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="wrap">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <a href="index.html" class="brand brand-foot"><img src="assets/logo-nav.webp" alt="OptimityFX Academy" class="brand-img" width="332" height="112"></a>
+        <p>Live & recorded creative courses in editing, color, music and AI — by OptimityFX NextGen Academy.</p>
+        <div class="foot-social"><a href="https://www.youtube.com/@OptimityFX" target="_blank" rel="noopener" aria-label="OptimityFX on YouTube"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M23 12s0-3.3-.4-4.9a2.5 2.5 0 0 0-1.8-1.8C19.2 5 12 5 12 5s-7.2 0-8.8.4A2.5 2.5 0 0 0 1.4 7.2C1 8.7 1 12 1 12s0 3.3.4 4.9a2.5 2.5 0 0 0 1.8 1.8C4.8 19 12 19 12 19s7.2 0 8.8-.4a2.5 2.5 0 0 0 1.8-1.8C23 15.3 23 12 23 12zM9.8 15.3V8.7l6 3.3z"/></svg></a><a href="https://www.instagram.com/optimityfx/" target="_blank" rel="noopener" aria-label="OptimityFX on Instagram"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></a><a href="https://www.linkedin.com/company/optimityfx/" target="_blank" rel="noopener" aria-label="OptimityFX on LinkedIn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4.98 3.5A2.5 2.5 0 1 1 0 3.5a2.5 2.5 0 0 1 4.98 0zM.5 8h4V24h-4zM8 8h3.8v2.2h.06c.53-1 1.83-2.2 3.77-2.2 4.03 0 4.77 2.65 4.77 6.1V24h-4v-7.1c0-1.7-.03-3.9-2.37-3.9-2.38 0-2.74 1.85-2.74 3.77V24H8z"/></svg></a></div>
+      </div>
+      <div><h5>Academy</h5><ul><li><a href="academy.html">All Courses</a></li><li><a href="login.html">Student Login</a></li><li><a href="pricing.html">Pricing</a></li></ul></div>
+      <div><h5>Company</h5><ul><li><a href="about.html">About Us</a></li><li><a href="contact.html">Contact</a></li><li><a href="privacy.html">Privacy Policy</a></li><li><a href="terms.html">Terms &amp; Conditions</a></li><li><a href="refund.html">Refund Policy</a></li></ul></div>
+      <div class="footer-brand">
+        <h5>Get In Touch</h5>
+        <ul class="foot-contact">
+          <li><a href="mailto:hello@optimityfx.com">hello@optimityfx.com</a></li>
+          <li><a href="tel:+917001202156">+91 70012 02156</a></li>
+          <li>Bagnan, Howrah, West Bengal 711312, India</li>
+        </ul>
+        <a href="academy.html" class="btn btn-accent btn-sm" style="margin-top:16px">Browse Courses</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>&copy; <span data-year>2026</span> OptimityFX. All rights reserved.</p>
+      <div class="legal-links"><a href="pricing.html">Pricing</a><a href="terms.html">Terms</a><a href="refund.html">Refund</a><a href="privacy.html">Privacy</a><a href="contact.html">Contact</a></div>
+    </div>
+  </div>
+</footer>
+
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.min.js"></script>
+<script src="js/config.js?v=20260615b"></script>
+<script src="js/auth.js?v=20260618a"></script>
+<script src="js/main.js?v=20260615a"></script>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  const session = await OFXAuth.requireAuth('login.html?next=checkout.html');
+  if (!session) return;
+
+  const sb    = OFXAuth.sb;
+  const uid   = session.user.id;
+  const cart  = OFXAuth.Cart.get();
+  const profile = await OFXAuth.getProfile(uid);
+
+  let appliedCoupon   = null;
+  let couponDiscount  = 0;
+  let useCredits      = false;
+  let creditsDiscount = 0;
+  const walletCredits = profile?.wallet_credits || 0;
+
+  /* ---- Empty cart ---- */
+  if (!cart.length) {
+    document.getElementById('checkout-content').style.display = 'none';
+    document.getElementById('empty-cart').style.display = '';
+    return;
+  }
+
+  /* ---- Render cart items ---- */
+  const subtotal = cart.reduce((s, p) => s + (p.sale_price || p.price || 0), 0);
+  document.getElementById('item-count').textContent = cart.length;
+
+  const itemsHtml = cart.map(p => `
+    <div class="cart-item-row" id="ci-${p.id}">
+      ${p.thumbnail_url
+        ? `<img class="cart-item-thumb" src="${p.thumbnail_url}" alt="${p.name}">`
+        : `<div class="cart-item-thumb" style="display:grid;place-items:center;color:var(--faint)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="22" height="22"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/></svg></div>`}
+      <div class="cart-item-info">
+        <h4>${p.name}</h4>
+        <span>${p.category || ''}</span>
+      </div>
+      <div class="cart-item-price">₹${(p.sale_price || p.price || 0).toLocaleString('en-IN')}</div>
+      <button class="cart-item-remove" onclick="removeItem('${p.id}')" aria-label="Remove">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+  `).join('');
+  document.getElementById('cart-items-list').innerHTML = itemsHtml;
+
+  /* ---- Wallet credits ---- */
+  if (walletCredits > 0) {
+    document.getElementById('credits-row').style.display = '';
+    document.getElementById('credits-available').textContent = `${walletCredits} ✦`;
+  }
+
+  /* ---- Remove item ---- */
+  window.removeItem = (id) => {
+    OFXAuth.Cart.remove(id);
+    document.getElementById('ci-' + id)?.remove();
+    const remaining = OFXAuth.Cart.get();
+    document.getElementById('item-count').textContent = remaining.length;
+    if (!remaining.length) {
+      document.getElementById('checkout-content').style.display = 'none';
+      document.getElementById('empty-cart').style.display = '';
+    }
+    updateTotals();
+  };
+
+  /* ---- Update totals ---- */
+  function updateTotals() {
+    const items = OFXAuth.Cart.get();
+    const sub   = items.reduce((s, p) => s + (p.sale_price || p.price || 0), 0);
+    creditsDiscount = useCredits ? Math.min(walletCredits, sub - couponDiscount) : 0;
+    const total = Math.max(0, sub - couponDiscount - creditsDiscount);
+
+    document.getElementById('sum-subtotal').textContent = `₹${sub.toLocaleString('en-IN')}`;
+    document.getElementById('sum-total').textContent    = `₹${total.toLocaleString('en-IN')}`;
+    document.getElementById('pay-btn').disabled = false;
+    document.getElementById('pay-btn').querySelector('svg').nextSibling
+      ? null
+      : null;
+    document.getElementById('pay-btn').lastChild.textContent = ` Pay ₹${total.toLocaleString('en-IN')}`;
+
+    if (couponDiscount > 0) {
+      document.getElementById('discount-row').style.display = '';
+      document.getElementById('sum-discount').textContent = `-₹${Math.floor(couponDiscount).toLocaleString('en-IN')}`;
+    } else {
+      document.getElementById('discount-row').style.display = 'none';
+    }
+
+    if (creditsDiscount > 0) {
+      document.getElementById('credits-discount-row').style.display = '';
+      document.getElementById('sum-credits-discount').textContent = `-₹${Math.floor(creditsDiscount).toLocaleString('en-IN')}`;
+    } else {
+      document.getElementById('credits-discount-row').style.display = 'none';
+    }
+  }
+  updateTotals();
+
+  /* Fix: set pay button text properly */
+  const payBtn = document.getElementById('pay-btn');
+  payBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Pay ₹${subtotal.toLocaleString('en-IN')}`;
+  payBtn.disabled = false;
+
+  /* ---- Coupon ---- */
+  document.getElementById('apply-coupon').addEventListener('click', async () => {
+    const code = document.getElementById('coupon-code').value.trim();
+    const msg  = document.getElementById('coupon-msg');
+    if (!code) { msg.className = 'coupon-msg err'; msg.textContent = 'Enter a coupon code.'; return; }
+    const items = OFXAuth.Cart.get();
+    const sub   = items.reduce((s, p) => s + (p.sale_price || p.price || 0), 0);
+    const result = await OFXAuth.validateCoupon(code, sub);
+    msg.textContent = result.message;
+    msg.className   = `coupon-msg ${result.valid ? 'ok' : 'err'}`;
+    if (result.valid) { appliedCoupon = result.coupon; couponDiscount = result.discount; updateTotals(); }
+  });
+
+  /* ---- Credits toggle ---- */
+  document.getElementById('use-credits')?.addEventListener('change', (e) => {
+    useCredits = e.target.checked;
+    updateTotals();
+  });
+
+  /* ---- Razorpay payment ---- */
+  payBtn.addEventListener('click', async () => {
+    const items = OFXAuth.Cart.get();
+
+    payBtn.disabled = true;
+    const payBtnHtml = payBtn.innerHTML;
+    payBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="animation:spin .7s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Starting…`;
+
+    // 1. Create the order SERVER-SIDE (authoritative amount + Razorpay order id)
+    let order;
+    try {
+      const token = session.access_token || (await sb.auth.getSession()).data.session?.access_token;
+      const r = await fetch('/api/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          items: items.map(p => ({ id: p.id })),
+          couponCode: appliedCoupon?.code || null,
+          useCredits: creditsDiscount || 0,
+        }),
+      });
+      order = await r.json();
+      if (!r.ok || !order.razorpayOrderId) throw new Error(order.error || 'Could not start checkout');
+    } catch (err) {
+      console.error('create-order failed:', err);
+      OFXAuth.toast('Could not start checkout: ' + (err.message || err), 'error', 0);
+      payBtn.disabled = false; payBtn.innerHTML = payBtnHtml;
+      return;
+    }
+
+    const options = {
+      key:         order.keyId || OFX.razorpayKey,
+      order_id:    order.razorpayOrderId,
+      amount:      order.amount,
+      currency:    OFX.currency,
+      name:        OFX.companyName,
+      description: `${items.length} item(s) — OptimityFX Academy`,
+      image:       'https://academy.optimityfx.com/assets/razorpay-logo.png',
+      prefill: {
+        name:  profile?.full_name || '',
+        email: session.user.email || '',
+      },
+      theme: { color: '#00D4FF' },
+
+      handler: async (response) => {
+        // 2. Verify the payment SERVER-SIDE before granting anything
+        payBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="animation:spin .7s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Verifying…`;
+        try {
+          const vr = await fetch('/api/verify-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              razorpay_order_id:   response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature:  response.razorpay_signature,
+            }),
+          });
+          const result = await vr.json();
+          if (!vr.ok || !result.valid) throw new Error(result.error || 'Verification failed');
+
+          // Verified & recorded server-side — show success
+          OFXAuth.Cart.clear();
+          document.getElementById('checkout-content').style.display = 'none';
+          document.getElementById('success-state').style.display    = '';
+        } catch (err) {
+          console.error('Payment verification failed:', err);
+          OFXAuth.toast('Payment verification failed. If you were charged, contact support with payment ID: ' + response.razorpay_payment_id, 'error', 0);
+          payBtn.disabled = false;
+          payBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Retry`;
+        }
+      },
+
+      modal: {
+        backdropclose: false,
+        ondismiss: () => {
+          OFXAuth.toast('Payment cancelled. Your cart is still saved.', 'info');
+          payBtn.disabled = false; payBtn.innerHTML = payBtnHtml;
+        },
+      },
+    };
+
+    const rzp = new Razorpay(options);
+    rzp.open();
+  });
+});
+</script>
+</body>
+</html>

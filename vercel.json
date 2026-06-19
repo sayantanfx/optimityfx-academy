@@ -1,6 +1,14 @@
 {
   "redirects": [
     {
+      "source": "/",
+      "has": [
+        { "type": "host", "value": "optimityfx-academy.vercel.app" }
+      ],
+      "destination": "https://academy.optimityfx.com/",
+      "permanent": true
+    },
+    {
       "source": "/:path*",
       "has": [
         { "type": "host", "value": "optimityfx-academy.vercel.app" }

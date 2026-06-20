@@ -87,8 +87,9 @@ export default async function handler(req, res) {
     // 4. Apply wallet credits, clamped to the user's real balance.
     //    Also fetch profile contact details Cashfree needs for the order.
     let creditsApplied = 0;
-    const prres = await sb(`profiles?select=wallet_credits,full_name,phone&id=eq.${uid}`);
-    const [prof] = await prres.json();
+    const prres = await sb(`profiles?select=wallet_credits,full_name&id=eq.${uid}`);
+    const profJson = await prres.json();
+    const prof = Array.isArray(profJson) ? profJson[0] : null;
     if (Number(useCredits) > 0) {
       const bal = Number(prof?.wallet_credits || 0);
       creditsApplied = Math.max(0, Math.min(Number(useCredits), bal, subtotal - discount));

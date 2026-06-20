@@ -113,12 +113,12 @@
         <!-- Pay button -->
         <button class="btn-pay" id="pay-btn" disabled>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-          Pay with Razorpay
+          Pay with Cashfree
         </button>
 
         <p class="secure-note">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          256-bit SSL encrypted. Razorpay secure checkout.
+          256-bit SSL encrypted. Cashfree secure checkout.
         </p>
       </div>
     </div>
@@ -153,7 +153,7 @@
   </div>
 </footer>
 
-<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.min.js"></script>
 <script src="js/config.js?v=20260615b"></script>
 <script src="js/auth.js?v=20260618a"></script>
@@ -276,15 +276,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     updateTotals();
   });
 
-  /* ---- Razorpay payment ---- */
+  /* ---- Cashfree payment ---- */
+  const payIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>`;
+  const spinIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="animation:spin .7s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>`;
+
   payBtn.addEventListener('click', async () => {
     const items = OFXAuth.Cart.get();
 
     payBtn.disabled = true;
     const payBtnHtml = payBtn.innerHTML;
-    payBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="animation:spin .7s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Starting…`;
+    payBtn.innerHTML = `${spinIcon} Starting…`;
 
-    // 1. Create the order SERVER-SIDE (authoritative amount + Razorpay order id)
+    // 1. Create the order SERVER-SIDE (authoritative amount + Cashfree session)
     let order;
     try {
       const token = session.access_token || (await sb.auth.getSession()).data.session?.access_token;
@@ -298,7 +301,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }),
       });
       order = await r.json();
-      if (!r.ok || !order.razorpayOrderId) throw new Error(order.error || 'Could not start checkout');
+      if (!r.ok || !order.paymentSessionId) throw new Error(order.error || 'Could not start checkout');
     } catch (err) {
       console.error('create-order failed:', err);
       OFXAuth.toast('Could not start checkout: ' + (err.message || err), 'error', 0);
@@ -306,59 +309,58 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    const options = {
-      key:         order.keyId || OFX.razorpayKey,
-      order_id:    order.razorpayOrderId,
-      amount:      order.amount,
-      currency:    OFX.currency,
-      name:        OFX.companyName,
-      description: `${items.length} item(s) — OptimityFX Academy`,
-      image:       'https://academy.optimityfx.com/assets/razorpay-logo.png',
-      prefill: {
-        name:  profile?.full_name || '',
-        email: session.user.email || '',
-      },
-      theme: { color: '#00D4FF' },
+    // 2. Open the Cashfree checkout (modal). Mode must match the server's CASHFREE_ENV.
+    let cashfree;
+    try {
+      cashfree = Cashfree({ mode: order.mode || OFX.cashfreeMode || 'sandbox' });
+    } catch (err) {
+      console.error('Cashfree SDK init failed:', err);
+      OFXAuth.toast('Payment SDK failed to load. Please refresh and try again.', 'error', 0);
+      payBtn.disabled = false; payBtn.innerHTML = payBtnHtml;
+      return;
+    }
 
-      handler: async (response) => {
-        // 2. Verify the payment SERVER-SIDE before granting anything
-        payBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="animation:spin .7s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Verifying…`;
-        try {
-          const vr = await fetch('/api/verify-payment', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              razorpay_order_id:   response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature:  response.razorpay_signature,
-            }),
-          });
-          const result = await vr.json();
-          if (!vr.ok || !result.valid) throw new Error(result.error || 'Verification failed');
+    let result;
+    try {
+      result = await cashfree.checkout({
+        paymentSessionId: order.paymentSessionId,
+        redirectTarget: '_modal',
+      });
+    } catch (err) {
+      console.error('Cashfree checkout error:', err);
+      OFXAuth.toast('Payment could not be completed. Your cart is still saved.', 'info');
+      payBtn.disabled = false; payBtn.innerHTML = payBtnHtml;
+      return;
+    }
 
-          // Verified & recorded server-side — show success
-          OFXAuth.Cart.clear();
-          document.getElementById('checkout-content').style.display = 'none';
-          document.getElementById('success-state').style.display    = '';
-        } catch (err) {
-          console.error('Payment verification failed:', err);
-          OFXAuth.toast('Payment verification failed. If you were charged, contact support with payment ID: ' + response.razorpay_payment_id, 'error', 0);
-          payBtn.disabled = false;
-          payBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Retry`;
-        }
-      },
+    // User closed the modal without paying
+    if (result && result.error && !result.paymentDetails) {
+      OFXAuth.toast('Payment cancelled. Your cart is still saved.', 'info');
+      payBtn.disabled = false; payBtn.innerHTML = payBtnHtml;
+      return;
+    }
 
-      modal: {
-        backdropclose: false,
-        ondismiss: () => {
-          OFXAuth.toast('Payment cancelled. Your cart is still saved.', 'info');
-          payBtn.disabled = false; payBtn.innerHTML = payBtnHtml;
-        },
-      },
-    };
+    // 3. Verify the payment SERVER-SIDE before granting anything
+    payBtn.innerHTML = `${spinIcon} Verifying…`;
+    try {
+      const vr = await fetch('/api/verify-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cfOrderId: order.cfOrderId }),
+      });
+      const v = await vr.json();
+      if (!vr.ok || !v.valid) throw new Error(v.error || 'Verification failed');
 
-    const rzp = new Razorpay(options);
-    rzp.open();
+      // Verified & recorded server-side — show success
+      OFXAuth.Cart.clear();
+      document.getElementById('checkout-content').style.display = 'none';
+      document.getElementById('success-state').style.display    = '';
+    } catch (err) {
+      console.error('Payment verification failed:', err);
+      OFXAuth.toast('Payment verification failed. If you were charged, contact support with order: ' + order.cfOrderId, 'error', 0);
+      payBtn.disabled = false;
+      payBtn.innerHTML = `${payIcon} Retry`;
+    }
   });
 });
 </script>

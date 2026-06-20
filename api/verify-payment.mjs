@@ -1,24 +1,32 @@
 /* ============================================================
    POST /api/verify-payment
-   Verifies the Razorpay payment signature SERVER-SIDE. Only on a
-   valid signature does it mark the pending order 'paid' and grant
-   purchases / deduct credits / bump coupon usage (all with the
-   service role). This is what makes a forged "paid" order impossible.
+   Confirms a Cashfree payment SERVER-SIDE by re-fetching the order
+   from Cashfree's API (the client is never trusted). Only when
+   Cashfree reports order_status === 'PAID' does it mark the pending
+   order 'paid' and grant purchases / deduct credits / bump coupon
+   usage (all with the service role). This makes a forged "paid"
+   order impossible.
 
-   Body: { razorpay_order_id, razorpay_payment_id, razorpay_signature }
+   Body: { cfOrderId }
 
    Required Vercel env vars:
-     SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, RAZORPAY_KEY_SECRET
+     SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
+     CASHFREE_APP_ID, CASHFREE_SECRET_KEY, CASHFREE_ENV
    ============================================================ */
-import crypto from 'crypto';
+
+const CF_API_VERSION = '2023-08-01';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, RAZORPAY_KEY_SECRET } = process.env;
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !RAZORPAY_KEY_SECRET) {
+  const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, CASHFREE_APP_ID, CASHFREE_SECRET_KEY, CASHFREE_ENV } = process.env;
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !CASHFREE_APP_ID || !CASHFREE_SECRET_KEY) {
     return res.status(500).json({ valid: false, error: 'Server not configured' });
   }
+
+  const cfBase = (CASHFREE_ENV === 'production')
+    ? 'https://api.cashfree.com/pg'
+    : 'https://sandbox.cashfree.com/pg';
 
   const sb = (path, opts = {}) => fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...opts,
@@ -31,29 +39,41 @@ export default async function handler(req, res) {
   });
 
   try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body || {};
-    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-      return res.status(400).json({ valid: false, error: 'Missing payment fields' });
+    const { cfOrderId } = req.body || {};
+    if (!cfOrderId) return res.status(400).json({ valid: false, error: 'Missing order id' });
+
+    // 1. Ask Cashfree for the authoritative order status
+    const cfres = await fetch(`${cfBase}/orders/${encodeURIComponent(cfOrderId)}`, {
+      headers: {
+        'x-client-id': CASHFREE_APP_ID,
+        'x-client-secret': CASHFREE_SECRET_KEY,
+        'x-api-version': CF_API_VERSION,
+      },
+    });
+    if (!cfres.ok) {
+      const detail = await cfres.text();
+      return res.status(502).json({ valid: false, error: 'Cashfree lookup failed', detail });
+    }
+    const cfOrder = await cfres.json();
+    if (cfOrder.order_status !== 'PAID') {
+      return res.status(400).json({ valid: false, error: `Payment not completed (status: ${cfOrder.order_status})` });
     }
 
-    // 1. Verify HMAC signature: HMAC_SHA256(order_id|payment_id, key_secret)
-    const expected = crypto.createHmac('sha256', RAZORPAY_KEY_SECRET)
-      .update(`${razorpay_order_id}|${razorpay_payment_id}`).digest('hex');
-    const a = Buffer.from(expected);
-    const b = Buffer.from(String(razorpay_signature));
-    const ok = a.length === b.length && crypto.timingSafeEqual(a, b);
-    if (!ok) return res.status(400).json({ valid: false, error: 'Signature verification failed' });
-
     // 2. Look up the pending order we created server-side
-    const ores = await sb(`orders?select=*&razorpay_order_id=eq.${encodeURIComponent(razorpay_order_id)}`);
+    const ores = await sb(`orders?select=*&cashfree_order_id=eq.${encodeURIComponent(cfOrderId)}`);
     const [order] = await ores.json();
     if (!order) return res.status(404).json({ valid: false, error: 'Order not found' });
     if (order.status === 'paid') return res.status(200).json({ valid: true, orderId: order.id, already: true });
 
+    // 2b. Defence-in-depth: the amount Cashfree collected must match ours
+    if (Math.round(Number(cfOrder.order_amount)) !== Math.round(Number(order.total))) {
+      return res.status(400).json({ valid: false, error: 'Amount mismatch' });
+    }
+
     // 3. Mark paid
     await sb(`orders?id=eq.${order.id}`, {
       method: 'PATCH',
-      body: JSON.stringify({ status: 'paid', razorpay_payment_id }),
+      body: JSON.stringify({ status: 'paid', cashfree_payment_id: String(cfOrder.cf_order_id || cfOrderId) }),
     });
 
     // 4. Grant purchases from the persisted line items

@@ -207,7 +207,7 @@
         <div class="acc-card" style="text-align:center; padding:38px 24px">
           <div class="es-icon" style="margin:0 auto 12px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></div>
           <h4 style="color:var(--white)">Cards are handled securely at checkout</h4>
-          <p style="max-width:420px;margin:8px auto 0">For your security, OptimityFX never stores card details. Our payment partner (Razorpay) saves and manages your cards during checkout — saved cards will appear here soon.</p>
+          <p style="max-width:420px;margin:8px auto 0">For your security, OptimityFX never stores card details. Our payment partner (Cashfree) saves and manages your cards during checkout — saved cards will appear here soon.</p>
           <a href="academy.html" class="btn btn-ghost btn-sm" style="margin-top:18px">Browse Courses →</a>
         </div>
       </div>
@@ -574,7 +574,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="order-items">${items}</div>
         <div class="order-foot">
           <span class="order-total">₹${Number(o.total).toLocaleString('en-IN')}</span>
-          ${o.razorpay_payment_id ? `<span class="order-pay">Payment: ${o.razorpay_payment_id}</span>` : ''}
+          ${o.cashfree_payment_id ? `<span class="order-pay">Payment: ${o.cashfree_payment_id}</span>` : ''}
         </div>
       </div>`;
     }).join('');

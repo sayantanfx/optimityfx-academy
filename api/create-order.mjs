@@ -1,24 +1,31 @@
 /* ============================================================
    POST /api/create-order
    Computes the order amount SERVER-SIDE from authoritative product
-   prices (prevents client price tampering), creates a Razorpay
-   Order, and persists a pending order + items in Supabase.
-   Returns { razorpayOrderId, amount (paise), total, keyId }.
+   prices (prevents client price tampering), creates a Cashfree
+   Payment Gateway order, and persists a pending order + items in
+   Supabase. Returns { paymentSessionId, cfOrderId, total, mode }.
 
    Required Vercel env vars:
      SUPABASE_URL                e.g. https://odcqkutaindtzbjrncdl.supabase.co
      SUPABASE_SERVICE_ROLE_KEY   Supabase service_role key (server-only secret)
-     RAZORPAY_KEY_ID             rzp_test_… / rzp_live_…
-     RAZORPAY_KEY_SECRET         Razorpay key secret (server-only)
+     CASHFREE_APP_ID             Cashfree App ID / client id (server-only)
+     CASHFREE_SECRET_KEY         Cashfree Secret Key (server-only)
+     CASHFREE_ENV                'sandbox' (default) or 'production'
    ============================================================ */
+
+const CF_API_VERSION = '2023-08-01';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET } = process.env;
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) {
+  const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, CASHFREE_APP_ID, CASHFREE_SECRET_KEY, CASHFREE_ENV } = process.env;
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !CASHFREE_APP_ID || !CASHFREE_SECRET_KEY) {
     return res.status(500).json({ error: 'Server not configured' });
   }
+
+  const cfBase = (CASHFREE_ENV === 'production')
+    ? 'https://api.cashfree.com/pg'
+    : 'https://sandbox.cashfree.com/pg';
 
   const sb = (path, opts = {}) => fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...opts,
@@ -77,32 +84,53 @@ export default async function handler(req, res) {
       }
     }
 
-    // 4. Apply wallet credits, clamped to the user's real balance
+    // 4. Apply wallet credits, clamped to the user's real balance.
+    //    Also fetch profile contact details Cashfree needs for the order.
     let creditsApplied = 0;
+    const prres = await sb(`profiles?select=wallet_credits,full_name,phone&id=eq.${uid}`);
+    const [prof] = await prres.json();
     if (Number(useCredits) > 0) {
-      const prres = await sb(`profiles?select=wallet_credits&id=eq.${uid}`);
-      const [prof] = await prres.json();
       const bal = Number(prof?.wallet_credits || 0);
       creditsApplied = Math.max(0, Math.min(Number(useCredits), bal, subtotal - discount));
     }
 
     const total = Math.max(1, Math.round(subtotal - discount - creditsApplied));
-    const amountPaise = total * 100;
 
-    // 5. Create the Razorpay order
-    const rzres = await fetch('https://api.razorpay.com/v1/orders', {
+    // 5. Create the Cashfree order. We supply our own order_id so the
+    //    pending Supabase row and the Cashfree order share one key.
+    const cfOrderId = `ofx_${uid.slice(0, 8)}_${Date.now()}`;
+    // Cashfree requires a customer phone; fall back to a valid placeholder.
+    const phone = String(prof?.phone || '').replace(/\D/g, '').slice(-10) || '9999999999';
+
+    const cfres = await fetch(`${cfBase}/orders`, {
       method: 'POST',
       headers: {
-        Authorization: 'Basic ' + Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString('base64'),
+        'x-client-id': CASHFREE_APP_ID,
+        'x-client-secret': CASHFREE_SECRET_KEY,
+        'x-api-version': CF_API_VERSION,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ amount: amountPaise, currency: 'INR', notes: { uid } }),
+      body: JSON.stringify({
+        order_id: cfOrderId,
+        order_amount: total,
+        order_currency: 'INR',
+        customer_details: {
+          customer_id: uid,
+          customer_email: user.email || 'noreply@optimityfx.com',
+          customer_phone: phone,
+          customer_name: prof?.full_name || 'OptimityFX Student',
+        },
+        order_note: `${lineItems.length} item(s) — OptimityFX Academy`,
+      }),
     });
-    if (!rzres.ok) {
-      const detail = await rzres.text();
-      return res.status(502).json({ error: 'Razorpay order creation failed', detail });
+    if (!cfres.ok) {
+      const detail = await cfres.text();
+      return res.status(502).json({ error: 'Cashfree order creation failed', detail });
     }
-    const rzOrder = await rzres.json();
+    const cfOrder = await cfres.json();
+    if (!cfOrder.payment_session_id) {
+      return res.status(502).json({ error: 'Cashfree returned no payment session', detail: cfOrder });
+    }
 
     // 6. Persist a pending order + items (finalized in verify-payment)
     const ores = await sb('orders', {
@@ -110,7 +138,7 @@ export default async function handler(req, res) {
       headers: { Prefer: 'return=representation' },
       body: JSON.stringify({
         user_id: uid, total, discount, credits_used: creditsApplied,
-        coupon_id: couponId, status: 'created', razorpay_order_id: rzOrder.id,
+        coupon_id: couponId, status: 'created', cashfree_order_id: cfOrderId,
       }),
     });
     const [order] = await ores.json();
@@ -121,7 +149,12 @@ export default async function handler(req, res) {
       body: JSON.stringify(lineItems.map(li => ({ order_id: order.id, product_id: li.product_id, price: li.price }))),
     });
 
-    return res.status(200).json({ razorpayOrderId: rzOrder.id, amount: amountPaise, total, keyId: RAZORPAY_KEY_ID });
+    return res.status(200).json({
+      paymentSessionId: cfOrder.payment_session_id,
+      cfOrderId,
+      total,
+      mode: (CASHFREE_ENV === 'production') ? 'production' : 'sandbox',
+    });
   } catch (e) {
     return res.status(500).json({ error: 'Server error', detail: String(e) });
   }

@@ -35,11 +35,26 @@ functions in `/api` read them from `process.env`.
 |---|---|
 | `SUPABASE_URL` | `https://odcqkutaindtzbjrncdl.supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API (server-only secret) |
-| `RAZORPAY_KEY_ID` | `rzp_test_…` for now · swap to `rzp_live_…` after approval |
-| `RAZORPAY_KEY_SECRET` | Razorpay dashboard → API Keys (server-only secret) |
+| `CASHFREE_APP_ID` | Cashfree → Developers → API Keys → App ID (server-only) |
+| `CASHFREE_SECRET_KEY` | Cashfree → Developers → API Keys → Secret Key (server-only secret) |
+| `CASHFREE_ENV` | `sandbox` for testing · `production` after Cashfree approves the site |
 
-(Same variables as the `digital` project — copy them across. Swap the
-gateway env vars if/when you move off Razorpay, e.g. to Cashfree.)
+(Supabase variables are the same as the `digital` project — copy them across.
+The `js/config.js` `cashfreeMode` value must match `CASHFREE_ENV`.)
+
+### Database migration (one-time)
+
+The order tables track the gateway's order/payment ids. Add the Cashfree
+columns in Supabase → SQL editor:
+
+```sql
+alter table orders add column if not exists cashfree_order_id text;
+alter table orders add column if not exists cashfree_payment_id text;
+create index if not exists orders_cashfree_order_id_idx on orders (cashfree_order_id);
+```
+
+(The older `razorpay_order_id` / `razorpay_payment_id` columns can stay; they
+are no longer written to.)
 
 ## 4. Add the custom domain
 
@@ -60,8 +75,8 @@ Never list multiple verticals on either site — that's what triggers rejection.
 
 `js/config.js` holds the public (safe-to-expose) values:
 - `supabaseUrl`, `supabaseKey` (anon key)
-- `razorpayKey` — public test/live key id
+- `cashfreeMode` — `sandbox` / `production` (must match `CASHFREE_ENV`)
 - `siteUrl` — `https://academy.optimityfx.com`
 
-The **secret** keys (service role, Razorpay secret) live only in Vercel env vars,
-never in the repo.
+The **secret** keys (service role, Cashfree App ID + Secret Key) live only in
+Vercel env vars, never in the repo.

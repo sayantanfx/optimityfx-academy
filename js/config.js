@@ -8,8 +8,10 @@ window.OFX = Object.freeze({
   supabaseUrl: 'https://odcqkutaindtzbjrncdl.supabase.co',    // https://xxxx.supabase.co
   supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9kY3FrdXRhaW5kdHpianJuY2RsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NDUyMDAsImV4cCI6MjA5NjQyMTIwMH0.92AAPjpZVReQTpU4y9eX88IB0U-8Vu6CR9ufOkUGBzE',        // eyJhbGc... (safe to expose)
 
-  // Razorpay — get from: dashboard.razorpay.com > Settings > API Keys
-  razorpayKey: 'rzp_test_RIyiX1gYWReMxp',        // TEST key — swap for rzp_live_XXXX after Razorpay approves the site
+  // Cashfree — App ID / Secret Key live SERVER-SIDE only (Vercel env vars
+  // CASHFREE_APP_ID / CASHFREE_SECRET_KEY / CASHFREE_ENV). The client only
+  // needs the SDK mode, which must match CASHFREE_ENV on the server.
+  cashfreeMode: 'sandbox',        // 'sandbox' for test · 'production' after Cashfree approves the site
 
   // Business info
   currency:    'INR',

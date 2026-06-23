@@ -1820,3 +1820,18 @@ body.focus-mode #pw-clock, body.focus-mode #pw-weather { opacity:.6; }
   .account-nav-sep { display:none; }
   .danger-row { flex-direction:column; align-items:flex-start; gap:8px; }
 }
+
+/* Back to main site link */
+.back-main {
+  font-size: .72rem;
+  color: var(--dim, #6b7280);
+  text-decoration: none;
+  letter-spacing: .3px;
+  white-space: nowrap;
+  opacity: .75;
+  transition: opacity .2s;
+  display: none;
+}
+.back-main:hover { opacity: 1; }
+@media (min-width: 640px) { .back-main { display: inline; } }
+
